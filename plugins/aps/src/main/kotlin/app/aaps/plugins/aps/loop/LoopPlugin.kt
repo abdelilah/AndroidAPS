@@ -84,6 +84,7 @@ import app.aaps.core.objects.extensions.json
 import app.aaps.core.objects.extensions.plannedRemainingMinutes
 import app.aaps.core.ui.toast.ToastUtils
 import app.aaps.core.validators.preferences.AdaptiveIntPreference
+import app.aaps.core.validators.preferences.AdaptiveSwitchPreference
 import app.aaps.plugins.aps.R
 import app.aaps.plugins.aps.loop.events.EventLoopSetLastRunGui
 import app.aaps.plugins.aps.loop.extensions.json
@@ -661,18 +662,23 @@ class LoopPlugin @Inject constructor(
                 } else {
                     // LGS
                     if (resultAfterConstraints.isChangeRequested && allowNotification) {
-                        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-                        builder.setSmallIcon(app.aaps.core.ui.R.drawable.notif_icon)
-                            .setContentTitle(rh.gs(R.string.open_loop_new_suggestion))
-                            .setContentText(resultAfterConstraints.resultAsString())
-                            .setAutoCancel(true)
-                            .setPriority(Notification.IMPORTANCE_HIGH)
-                            .setCategory(Notification.CATEGORY_ALARM)
-                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                        if (preferences.get(BooleanKey.WearControl)) {
-                            builder.setLocalOnly(true)
+                        if (preferences.get(BooleanKey.ApsAutoAcceptSuggestions)) {
+                            aapsLogger.debug(LTag.APS, "Auto-accepting open-loop suggestion")
+                            acceptChangeRequest()
+                        } else {
+                            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+                            builder.setSmallIcon(app.aaps.core.ui.R.drawable.notif_icon)
+                                .setContentTitle(rh.gs(R.string.open_loop_new_suggestion))
+                                .setContentText(resultAfterConstraints.resultAsString())
+                                .setAutoCancel(true)
+                                .setPriority(Notification.IMPORTANCE_HIGH)
+                                .setCategory(Notification.CATEGORY_ALARM)
+                                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                            if (preferences.get(BooleanKey.WearControl)) {
+                                builder.setLocalOnly(true)
+                            }
+                            presentSuggestion(builder, resultAfterConstraints.resultAsString())
                         }
-                        presentSuggestion(builder, resultAfterConstraints.resultAsString())
                     } else if (allowNotification) {
                         dismissSuggestion()
                     }
@@ -1046,6 +1052,7 @@ class LoopPlugin @Inject constructor(
             title = rh.gs(app.aaps.core.ui.R.string.loop)
             initialExpandedChildrenCount = 0
             addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.LoopOpenModeMinChange, dialogMessage = R.string.loop_open_mode_min_change_summary, title = R.string.loop_open_mode_min_change))
+            addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.ApsAutoAcceptSuggestions, summary = R.string.auto_accept_suggestions_summary, title = R.string.auto_accept_suggestions_title))
         }
     }
 
