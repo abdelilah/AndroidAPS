@@ -754,7 +754,7 @@ class LoopPlugin(
                 } else {
                     // LGS
                     if (resultAfterConstraints.isChangeRequested() && allowNotification) {
-                        presentSuggestion(resultAfterConstraints.resultAsString())
+                        handleOpenLoopSuggestion(resultAfterConstraints.resultAsString())
                     } else if (allowNotification) {
                         dismissSuggestion()
                     }
@@ -771,6 +771,20 @@ class LoopPlugin(
         carbsSuggestionsSuspendedUntil = dateUtil.now() + durationMinutes * 60 * 1000
         aapsLogger.debug(LTag.CORE, "CarbSuggestion disabled until ${dateUtil.dateAndTimeAndSecondsString(carbsSuggestionsSuspendedUntil)}")
         dismissSuggestion()
+    }
+
+    internal suspend fun handleOpenLoopSuggestion(contentText: String) {
+        // Never turn an LGS fallback or a paused loop into automatic delivery.
+        if (preferences.get(BooleanKey.ApsAutoAcceptSuggestions) && runningMode() == RM.Mode.OPEN_LOOP) {
+            aapsLogger.debug(LTag.APS, "Auto-accepting open-loop temp basal suggestion")
+            val previousEnactment = lastRun?.tbrSetByPump
+            acceptChangeRequest(manual = false)
+            if (lastRun?.tbrSetByPump?.enacted == true && lastRun?.tbrSetByPump !== previousEnactment) {
+                dismissSuggestion()
+                return
+            }
+        }
+        presentSuggestion(contentText)
     }
 
     private fun presentSuggestion(contentText: String) {
@@ -801,7 +815,9 @@ class LoopPlugin(
         }
     }
 
-    override suspend fun acceptChangeRequest(): String? {
+    override suspend fun acceptChangeRequest(): String? = acceptChangeRequest(manual = true)
+
+    private suspend fun acceptChangeRequest(manual: Boolean): String? {
         val profile = profileFunction.getProfile() ?: return null
         // Same hold as in `invoke`, and this path needs its own check: it enacts OUTSIDE `invokeMutex`
         // and is reachable from the phone and the watch, so nothing `invoke` does protects it. The user
@@ -841,11 +857,11 @@ class LoopPlugin(
                 lastRun.lastTBREnact = dateUtil.now()
                 lastRun.lastOpenModeAccept = dateUtil.now()
                 scheduleBuildAndStoreDeviceStatus("acceptChangeRequest")
-                preferences.inc(IntNonKey.ObjectivesManualEnacts)
+                if (manual) preferences.inc(IntNonKey.ObjectivesManualEnacts)
             }
             rxBus.send(EventAcceptOpenLoopChange())
         }
-        fabricPrivacy.logCustom("AcceptTemp")
+        fabricPrivacy.logCustom(if (manual) "AcceptTemp" else "AutoAcceptTemp")
         return null
     }
 
@@ -1125,7 +1141,8 @@ class LoopPlugin(
         key = "loop_settings",
         title = CoreUiStrings.loop,
         items = listOf(
-            IntKey.LoopOpenModeMinChange
+            IntKey.LoopOpenModeMinChange,
+            BooleanKey.ApsAutoAcceptSuggestions
         ),
         icon = pluginDescription.icon
     )

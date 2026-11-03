@@ -214,6 +214,8 @@
 
     <!-- IntKey: Loop preferences -->
     <string name="pref_title_open_mode_min_change">Open mode minimum change</string>
+    <string name="auto_accept_suggestions_title">Auto-accept suggestions</string>
+    <string name="auto_accept_suggestions_summary">Automatically apply open-loop temp basal suggestions without manual confirmation. This changes insulin delivery. Failed requests still show a suggestion.</string>
     <string name="loop_open_mode_min_change_summary" formatted="false">Open Loop will popup new change request only if change is bigger than this value in %. Default value is 20%</string>
 
     <!-- IntKey: APS preferences -->

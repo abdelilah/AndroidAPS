@@ -28,6 +28,8 @@ import app.aaps.core.interfaces.queue.SmbPause
 import app.aaps.core.interfaces.receivers.ReceiverStatusStore
 import app.aaps.core.interfaces.utils.HardLimits
 import app.aaps.core.keys.IntKey
+import app.aaps.core.keys.BooleanKey
+import app.aaps.core.keys.IntNonKey
 import app.aaps.core.keys.interfaces.TextRef
 import app.aaps.core.objects.constraints.ConstraintObject
 import app.aaps.core.utils.MidnightUtils
@@ -1090,6 +1092,71 @@ class LoopPluginTest : TestBaseWithProfile() {
         verify(loopNotifier).dismiss()
     }
 
+    @Test
+    fun `auto acceptance is disabled by default`() {
+        assertThat(BooleanKey.ApsAutoAcceptSuggestions.defaultValue).isFalse()
+    }
+
+    @Test
+    fun `disabled auto acceptance only presents the suggestion`() = runTest {
+        prepareAcceptableRequest()
+        loopPlugin.handleOpenLoopSuggestion("Suggestion")
+
+        verify(loopNotifier).openLoopSuggestion(eq("Suggestion"), any())
+        verify(commandQueue, never()).tempBasalAbsolute(any(), any(), any(), any(), any())
+    }
+
+    @Test
+    fun `auto acceptance enacts without advancing manual objectives`() = runTest {
+        prepareAcceptableRequest()
+        whenever(preferences.get(BooleanKey.ApsAutoAcceptSuggestions)).thenReturn(true)
+        whenever(commandQueue.tempBasalAbsolute(any(), any(), any(), any(), any())).thenReturn(pumpEnactResultProvider().enacted(true).success(true))
+
+        loopPlugin.handleOpenLoopSuggestion("Suggestion")
+
+        verify(commandQueue).tempBasalAbsolute(any(), any(), any(), any(), any())
+        verify(preferences, never()).inc(IntNonKey.ObjectivesManualEnacts)
+        verify(loopNotifier, never()).openLoopSuggestion(any(), any())
+        verify(loopNotifier).dismiss()
+    }
+
+    @Test
+    fun `auto acceptance refuses stale suggestions and held queue`() = runTest {
+        whenever(preferences.get(BooleanKey.ApsAutoAcceptSuggestions)).thenReturn(true)
+        prepareAcceptableRequest(suggestionAge = T.mins(Constants.OLD_BG_MINUTES).msecs() + 1)
+        loopPlugin.handleOpenLoopSuggestion("Stale")
+
+        prepareAcceptableRequest()
+        whenever(commandQueue.isHeld()).thenReturn(true)
+        loopPlugin.handleOpenLoopSuggestion("Held")
+
+        verify(commandQueue, never()).tempBasalAbsolute(any(), any(), any(), any(), any())
+        verify(preferences, never()).inc(IntNonKey.ObjectivesManualEnacts)
+    }
+
+    @Test
+    fun `auto acceptance does not enact in LGS or paused modes`() = runTest {
+        whenever(preferences.get(BooleanKey.ApsAutoAcceptSuggestions)).thenReturn(true)
+        for (mode in listOf(RM.Mode.CLOSED_LOOP_LGS, RM.Mode.SUSPENDED_BY_USER, RM.Mode.SUPER_BOLUS)) {
+            prepareAcceptableRequest(mode = mode)
+            loopPlugin.handleOpenLoopSuggestion("Suggestion")
+        }
+
+        verify(commandQueue, never()).tempBasalAbsolute(any(), any(), any(), any(), any())
+    }
+
+    @Test
+    fun `failed automatic delivery still presents the suggestion`() = runTest {
+        prepareAcceptableRequest()
+        whenever(preferences.get(BooleanKey.ApsAutoAcceptSuggestions)).thenReturn(true)
+        whenever(commandQueue.tempBasalAbsolute(any(), any(), any(), any(), any())).thenReturn(pumpEnactResultProvider().enacted(false).success(false))
+
+        loopPlugin.handleOpenLoopSuggestion("Suggestion")
+
+        verify(loopNotifier).openLoopSuggestion(eq("Suggestion"), any())
+        verify(preferences, never()).inc(IntNonKey.ObjectivesManualEnacts)
+    }
+
     /** The control case: the same setup, in open loop and fresh, does enact. */
     @Test
     fun `acceptChangeRequest enacts a fresh suggestion in open loop`() = runTest {
@@ -1098,6 +1165,7 @@ class LoopPluginTest : TestBaseWithProfile() {
 
         assertThat(loopPlugin.acceptChangeRequest()).isNull()
         verify(commandQueue).tempBasalAbsolute(any(), any(), any(), any(), any())
+        verify(preferences).inc(IntNonKey.ObjectivesManualEnacts)
     }
 
     /**

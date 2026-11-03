@@ -88,6 +88,11 @@ enum class BooleanKey(
     BgSourceCreateSensorChange("dexcom_lognssensorchange", true, KeysStrings.pref_title_bg_source_create_sensor_change, KeysStrings.pref_summary_bg_source_create_sensor_change, defaultedBySM = true),
     BgSourceRandomBgRandomize("randombg_randomize", true, KeysStrings.pref_title_random_bg_randomize, KeysStrings.pref_summary_random_bg_randomize, defaultedBySM = true),
 
+    ApsAutoAcceptSuggestions(
+        key = "auto_accept_suggestions", defaultValue = false,
+        title = KeysStrings.auto_accept_suggestions_title, summary = KeysStrings.auto_accept_suggestions_summary,
+        defaultedBySM = true, showInNsClientMode = false, showInPumpControlMode = false
+    ),
     ApsUseDynamicSensitivity("use_dynamic_sensitivity", false, KeysStrings.pref_title_aps_use_dynamic_sensitivity, KeysStrings.pref_summary_aps_use_dynamic_sensitivity, sync = SyncSpec(SyncChannel.Cold, SyncDirection.Bidirectional)),
     ApsUseAutosens(
         "openapsama_useautosens", true, KeysStrings.pref_title_aps_use_autosens, defaultedBySM = true,
